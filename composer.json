@@ -1,13 +1,26 @@
 {
     "name": "aoyagikouhei/pg",
     "description": "PHP Class for PostgreSQL",
+    "license": "MIT",
+    "keywords": ["postgresql"],
+    "homepage": "https://github.com/aoyagikouhei/pg",
     "authors": [
         {
             "name": "aoyagikouhei",
-            "email": "aoyagi.kouhei@gmail.com"
+            "email": "aoyagi.kouhei@gmail.com",
+            "homepage": "http://aoyagikouhei.blog8.fc2.com/",
+            "role": "Developer"
         }
     ],
     "require": {
-
+        "php": ">=5.4.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "3.7.*"
+    },
+    "autoload": {
+        "psr-0": {
+            "Pg": "./src"
+        }
     }
 }
