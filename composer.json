@@ -1,0 +1,13 @@
+{
+    "name": "aoyagikouhei/pg",
+    "description": "PHP Class for PostgreSQL",
+    "authors": [
+        {
+            "name": "aoyagikouhei",
+            "email": "aoyagi.kouhei@gmail.com"
+        }
+    ],
+    "require": {
+
+    }
+}
