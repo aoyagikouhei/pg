@@ -11,6 +11,7 @@ class Db
         if (false === $this->dbconn) {
             throw new \Pg\Exception(pg_last_error());
         }
+        pg_set_error_verbosity($this->dbconn, PGSQL_ERRORS_VERBOSE);
     }
 
     private function getTypeMap($result) 
@@ -41,6 +42,9 @@ class Db
             case 'bool' :
                 return 't' === $value;
                 break;
+            case 'timestamptz' :
+                return new \DateTime($value);
+                break;
             default :
                 return $value;
         }
@@ -49,27 +53,33 @@ class Db
     private function exec($sql, $params)
     {
         if (empty($params)) {
-            return pg_query($this->dbconn, $sql);
+            pg_send_query($this->dbconn, $sql);
+        } else {
+            $newParams = [];
+            $callback = function($matches) use ($params, &$newParams) {
+                $value = $params[$matches[1]];
+                if (is_bool($value)) {
+                    $value = $value ? 't' : 'f';
+                } else if ($value instanceof \DateTime) {
+                    $value = $value->format('Y-m-d H:i:s O');
+                }
+                $newParams[] = $value;
+                return '$' . count($newParams);
+            };
+            $newSql = preg_replace_callback('/:([a-zA-Z0-9_]+)/', $callback, $sql);
+            pg_send_query_params($this->dbconn, $newSql, $newParams);
         }
-        $newParams = [];
-        $callback = function($matches) use ($params, &$newParams) {
-            $value = $params[$matches[1]];
-            if (is_bool($value)) {
-                $value = $value ? 't' : 'f';
-            }
-            $newParams[] = $value;
-            return '$' . count($newParams);
-        };
-        $newSql = preg_replace_callback('/:([^, )]+)/', $callback, $sql);
-        return pg_query_params($this->dbconn, $newSql, $newParams);
+        $result = pg_get_result($this->dbconn);
+        $err = pg_result_error($result);
+        if ($err) {
+            throw new \Pg\Exception($err, 0, null, pg_result_error_field($result, PGSQL_DIAG_SQLSTATE));
+        }
+        return $result;
     }
 
     public function queryAll($sql, array $params = []) 
     {
         $result = $this->exec($sql, $params);
-        if (false === $result) {
-            throw new \Pg\Exception(pg_last_error());
-        }
         $list = [];
         $typeMap = $this->getTypeMap($result);
         while ($row = pg_fetch_assoc($result)) {
@@ -82,9 +92,6 @@ class Db
     public function executeQuery($sql, array $params = [])
     {
         $result = $this->exec($sql, $params);
-        if (false === $result) {
-            throw new \Pg\Exception(pg_last_error());
-        }
         return pg_affected_rows($result);
     }
 
