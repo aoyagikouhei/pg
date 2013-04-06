@@ -5,100 +5,86 @@ class Db
 {
     private $dbconn;
 
-    public function __construct($params)
+    function __construct($params)
     {
-        $this->dbconn = pg_connect($params['server']);
+        $this->dbconn = pg_pconnect($params['server']);
         if (false === $this->dbconn) {
             throw new \Pg\Exception(pg_last_error());
         }
         pg_set_error_verbosity($this->dbconn, PGSQL_ERRORS_VERBOSE);
     }
 
-    private function getTypeMap($result) 
+    public function query($sql, array $params=[]) 
     {
-        $count = pg_num_fields($result);
-        $typeMap = [];
-        for ($i = 0; $i < $count; $i++) {
-            $typeMap[pg_field_name($result, $i)] = pg_field_type($result, $i);
+        if (1 === preg_match('/:params[^a-zA-Z0-9_]/', $sql)) {
+            return $this->convertParamsQuery($sql, $params);
+        } elseif (empty($params)) {
+            return $this->rawQuery($sql);
         }
-        return $typeMap;
+        $newParams = [];
+        $callback = function($matches) use ($params, &$newParams) {
+            $value = $params[$matches[1]];
+            if (is_bool($value)) {
+                $value = \Pg\Type\Boolean::o2r($value);
+            } else if ($value instanceof \DateTime) {
+                $value = \Pg\Type\Timestamp::o2r($value);
+            } else if (is_array($value)) {
+                $value = \Pg\Type\Ary::o2r($value);
+            }
+            $newParams[] = $value;
+            return '$' . count($newParams);
+        };
+        $newSql = preg_replace_callback('/:([a-zA-Z0-9_]+)/', $callback, $sql);
+        return $this->rawQuery($newSql, $newParams);
     }
 
-    private function makeRow($row, $typeMap)
-    {
-        $result = [];
-        foreach ($row as $key => $value) {
-            $result[$key] = $this->getValue($value, $typeMap[$key]);
-        }
-        return $result;
-    }
-
-    private function getValue($value, $type) 
-    {
-        switch ($type) {
-            case 'int4' : 
-                return intval($value);
-                break;
-            case 'bool' :
-                return 't' === $value;
-                break;
-            case 'timestamptz' :
-                return new \DateTime($value);
-                break;
-            default :
-                return $value;
-        }
-    }
-
-    private function exec($sql, $params)
+    public function rawQuery($sql, array $params=[]) 
     {
         if (empty($params)) {
             pg_send_query($this->dbconn, $sql);
         } else {
-            $newParams = [];
-            $callback = function($matches) use ($params, &$newParams) {
-                $value = $params[$matches[1]];
-                if (is_bool($value)) {
-                    $value = $value ? 't' : 'f';
-                } else if ($value instanceof \DateTime) {
-                    $value = $value->format('Y-m-d H:i:s O');
-                }
-                $newParams[] = $value;
-                return '$' . count($newParams);
-            };
-            $newSql = preg_replace_callback('/:([a-zA-Z0-9_]+)/', $callback, $sql);
-            pg_send_query_params($this->dbconn, $newSql, $newParams);
+            pg_send_query_params($this->dbconn, $sql, $params);
         }
         $result = pg_get_result($this->dbconn);
         $err = pg_result_error($result);
         if ($err) {
             throw new \Pg\Exception($err, 0, null, pg_result_error_field($result, PGSQL_DIAG_SQLSTATE));
         }
-        return $result;
+        return new \Pg\Statement($result);
     }
 
-    public function queryAll($sql, array $params = []) 
+    public function queryValue($sql, array $params=[])
     {
-        $result = $this->exec($sql, $params);
-        $list = [];
-        $typeMap = $this->getTypeMap($result);
-        while ($row = pg_fetch_assoc($result)) {
-            $list[] = $this->makeRow($row, $typeMap);
+        return $this->query($sql, $params)->value();
+    }
+
+    public function queryOne($sql, array $params=[])
+    {
+        return $this->query($sql, $params)->one();
+    }
+
+    public function queryAll($sql, array $params=[])
+    {
+        return $this->query($sql, $params)->all();
+    }
+
+    public function queryAffectedCount($sql, array $params=[])
+    {
+        return $this->query($sql, $params)->getAffectedCount();
+    }
+
+    private function convertParamsQuery($sql, $params) {
+        $strParams = '';
+        $newParams = [];
+        $index = 1;
+        foreach ($params as $key => $value) {
+            if (1 !== $index) {
+                $strParams .= ', ';
+            }
+            $strParams .= 'p_' . $key . ' := ' . '\$' . $index;
+            $index += 1;
+            $newParams[] = $value;
         }
-        pg_free_result($result);
-        return $list;
-    }
-
-    public function executeQuery($sql, array $params = [])
-    {
-        $result = $this->exec($sql, $params);
-        return pg_affected_rows($result);
-    }
-
-    public function close()
-    {
-        if (false !== $this->dbconn) {
-            pg_close($this->dbconn);
-        }
+        return $this->rawQuery(preg_replace('/:params/', $strParams, $sql), $newParams);
     }
 }
