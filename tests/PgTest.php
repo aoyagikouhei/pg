@@ -16,6 +16,7 @@ class PgTest extends PHPUnit_Framework_TestCase
                 ,p_tval TEXT DEFAULT NULL
                 ,p_bval BOOLEAN DEFAULT NULL
                 ,p_tsval TIMESTAMPTZ DEFAULT NULL
+                ,p_ary TEXT[] DEFAULT NULL
             ) RETURNS TEXT AS \$FUNCTION\$
             DECLARE
             BEGIN
@@ -57,7 +58,7 @@ EOS
         $this->assertEquals('x', $this->db->queryValue("SELECT sp_test(:params)", []));
         $this->assertEquals('x1', $this->db->queryValue("SELECT sp_test(:params)", ['ival' => 1]));
         $this->assertEquals('x1a', $this->db->queryValue("SELECT sp_test(:params)", ['ival' => 1, 'tval' => 'a']));
-        $this->assertEquals('xatrue', $this->db->queryValue("SELECT sp_test(:params)", ['bval' => true, 'tval' => 'a', ]));
+        $this->assertEquals('xatrue', $this->db->queryValue("SELECT sp_test(:params)", ['bval' => true, 'tval' => 'a', 'ary' => ["a", "b"]]));
     }
 
     private function checkRow($expected, $real) {

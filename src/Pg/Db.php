@@ -24,14 +24,7 @@ class Db
         $newParams = [];
         $callback = function($matches) use ($params, &$newParams) {
             $value = $params[$matches[1]];
-            if (is_bool($value)) {
-                $value = \Pg\Type\Boolean::o2r($value);
-            } else if ($value instanceof \DateTime) {
-                $value = \Pg\Type\Timestamp::o2r($value);
-            } else if (is_array($value)) {
-                $value = \Pg\Type\Ary::o2r($value);
-            }
-            $newParams[] = $value;
+            $newParams[] = $this->calcValue($value);
             return '$' . count($newParams);
         };
         $newSql = preg_replace_callback('/:([a-zA-Z0-9_]+)/', $callback, $sql);
@@ -73,6 +66,18 @@ class Db
         return $this->query($sql, $params)->getAffectedCount();
     }
 
+    private function calcValue($value) {
+        if (is_bool($value)) {
+            return \Pg\Type\Boolean::o2r($value);
+        } else if ($value instanceof \DateTime) {
+            return \Pg\Type\Timestamp::o2r($value);
+        } else if (is_array($value)) {
+            return \Pg\Type\Ary::o2r($value);
+        } else {
+            return $value;
+        }
+    }
+
     private function convertParamsQuery($sql, $params) {
         $strParams = '';
         $newParams = [];
@@ -83,7 +88,7 @@ class Db
             }
             $strParams .= 'p_' . $key . ' := ' . '\$' . $index;
             $index += 1;
-            $newParams[] = $value;
+            $newParams[] = $this->calcValue($value);
         }
         return $this->rawQuery(preg_replace('/:params/', $strParams, $sql), $newParams);
     }
