@@ -88,15 +88,26 @@ class Statement
         return pg_field_type($this->result, $index);
     }
 
+    public function isEmpty()
+    {
+        return 0 === pg_num_rows($this->result);
+    }
+
     public function value()
     {
+        if ($this->isEmpty()) {
+            return null;
+        }
         $value = pg_fetch_result($this->result, 0, 0);
         return $this->convertTypeValue($value, $this->getType(0));
     }
 
     public function one()
     {
-        $typeMap = $this->getTypeMap();
+        if ($this->isEmpty()) {
+            return null;
+        }
+        $typeMap = $this->getTypeMap();   
         $row = $this->makeRow(pg_fetch_assoc($this->result), $typeMap);
         return $row;
     }

@@ -38,6 +38,8 @@ EOS
         }
         $this->checkList($values, $this->db->queryAll('select id,name,flag,ts,iary,tary from t_test order by id'));
         $this->checkRow($values[1], $this->db->queryOne('select id,name,flag,ts,iary,tary from t_test where id = :id order by id', ['id' => 2]));
+        $this->assertEquals(null, $this->db->queryOne('select id,name,flag,ts,iary,tary from t_test where id = :id order by id', ['id' => 3]));
+        $this->assertEquals(null, $this->db->queryValue('select id,name,flag,ts,iary,tary from t_test where id = :id order by id', ['id' => 3]));
     }
 
     public function testTableNotExists()
