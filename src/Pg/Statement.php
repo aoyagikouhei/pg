@@ -4,10 +4,12 @@ namespace Pg;
 class Statement
 {
     private $result;
+    private $typeConverter;
 
-    public function __construct($result)
+    public function __construct($result, $typeConverter)
     {
         $this->result = $result;
+        $this->typeConverter = $typeConverter;
     }
 
     function __destruct()
@@ -38,39 +40,13 @@ class Statement
     {
         $result = [];
         foreach ($row as $key => $value) {
-            $result[$key] = $this->convertTypeValue($value, $typeMap[$key]);
+            $result[$key] = $this->executeConvertTypeValue($value, $typeMap[$key]);
         }
         return $result;
     }
 
-    private function convertTypeValue($value, $type) 
-    {
-        if (is_null($value)) {
-            return null;
-        }
-        switch ($type) {
-            case 'int2' : 
-            case 'int4' : 
-            case 'int8' : 
-                return \Pg\Type\Int::r2o($value);
-                break;
-            case 'bool' :
-                return \Pg\Type\Boolean::r2o($value);
-                break;
-            case 'timestamptz' :
-                return \Pg\Type\Timestamp::r2o($value);
-                break;
-            case '_int2' :
-            case '_int4' :
-            case '_int8' :
-            case '_text' :
-            case '_bool' :
-            case '_timestamptz' :
-                return \Pg\Type\Ary::r2o($value);
-                break;
-            default :
-                return $value;
-        }
+    private function executeConvertTypeValue($value, $type) {
+        return $this->typeConverter->convert($value, $type);
     }
 
     public function getColumnName($index)
@@ -99,7 +75,7 @@ class Statement
             return null;
         }
         $value = pg_fetch_result($this->result, 0, 0);
-        return $this->convertTypeValue($value, $this->getType(0));
+        return $this->executeConvertTypeValue($value, $this->getType(0));
     }
 
     public function one()

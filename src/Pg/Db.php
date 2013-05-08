@@ -4,12 +4,18 @@ namespace Pg;
 class Db
 {
     private $dbconn;
+    private $typeConverter;
 
     function __construct($params)
     {
         $this->dbconn = pg_pconnect($params['server']);
         if (false === $this->dbconn) {
             throw new \Pg\Exception(pg_last_error());
+        }
+        if (isset($params['type_converter'])) {
+            $this->typeConverter = $params['type_converter'];
+        } else {
+            $this->typeConverter = new \Pg\TypeConverter();
         }
         pg_set_error_verbosity($this->dbconn, PGSQL_ERRORS_VERBOSE);
     }
@@ -43,7 +49,7 @@ class Db
         if ($err) {
             throw new \Pg\Exception($err, 0, null, pg_result_error_field($result, PGSQL_DIAG_SQLSTATE));
         }
-        return new \Pg\Statement($result);
+        return new \Pg\Statement($result, $this->typeConverter);
     }
 
     public function queryValue($sql, array $params=[])
