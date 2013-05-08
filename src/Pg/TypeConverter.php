@@ -26,7 +26,7 @@ class TypeConverter
             case '_text' :
             case '_bool' :
             case '_timestamptz' :
-                return $this->convertTimestamp($value, $type);
+                return $this->convertAry($value, $type);
                 break;
             default :
                 return $value;
