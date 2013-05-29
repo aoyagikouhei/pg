@@ -20,6 +20,16 @@ class Db
         pg_set_error_verbosity($this->dbconn, PGSQL_ERRORS_VERBOSE);
     }
 
+    public function getTypeConverter()
+    {
+        return $this->typeConverter;
+    }
+
+    public function setTypeConverter($typeConverter)
+    {
+        return $this->typeConverter = $typeConverter;
+    }
+
     public function query($sql, array $params=[]) 
     {
         if (1 === preg_match('/:params[^a-zA-Z0-9_]/', $sql)) {
@@ -29,8 +39,10 @@ class Db
         }
         $newParams = [];
         $callback = function($matches) use ($params, &$newParams) {
-            $value = $params[$matches[1]];
-            $newParams[] = $this->calcValue($value);
+            $newParams[] = $this->typeConverter->o2r(
+                $matches[1]
+                ,$params[$matches[1]]
+            );
             return '$' . count($newParams);
         };
         $newSql = preg_replace_callback('/:([a-zA-Z0-9_]+)/', $callback, $sql);
@@ -72,18 +84,6 @@ class Db
         return $this->query($sql, $params)->getAffectedCount();
     }
 
-    private function calcValue($value) {
-        if (is_bool($value)) {
-            return \Pg\Type\Boolean::o2r($value);
-        } else if ($value instanceof \DateTime) {
-            return \Pg\Type\Timestamp::o2r($value);
-        } else if (is_array($value)) {
-            return \Pg\Type\Ary::o2r($value);
-        } else {
-            return $value;
-        }
-    }
-
     private function convertParamsQuery($sql, $params) {
         $strParams = '';
         $newParams = [];
@@ -94,7 +94,7 @@ class Db
             }
             $strParams .= 'p_' . $key . ' := ' . '\$' . $index;
             $index += 1;
-            $newParams[] = $this->calcValue($value);
+            $newParams[] = $this->typeConverter->o2r($key, $value);
         }
         return $this->rawQuery(preg_replace('/:params/', $strParams, $sql), $newParams);
     }

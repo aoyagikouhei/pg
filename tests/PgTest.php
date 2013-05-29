@@ -9,7 +9,7 @@ class PgTest extends PHPUnit_Framework_TestCase
     public function testInit()
     {
         $this->db->query('DROP TABLE IF EXISTS t_test');
-        $this->db->query('CREATE TABLE t_test (id INT, name TEXT, flag BOOLEAN, ts TIMESTAMPTZ, iary BIGINT[], tary TEXT[])');
+        $this->db->query('CREATE TABLE t_test (id INT, name TEXT, flag BOOLEAN, ts TIMESTAMPTZ, iary BIGINT[], tary TEXT[], content_json json)');
         $this->db->query(<<<EOS
             CREATE OR REPLACE FUNCTION sp_test(
                 p_ival INT DEFAULT NULL
@@ -40,6 +40,16 @@ EOS
         $this->checkRow($values[1], $this->db->queryOne('select id,name,flag,ts,iary,tary from t_test where id = :id order by id', ['id' => 2]));
         $this->assertEquals(null, $this->db->queryOne('select id,name,flag,ts,iary,tary from t_test where id = :id order by id', ['id' => 3]));
         $this->assertEquals(null, $this->db->queryValue('select id,name,flag,ts,iary,tary from t_test where id = :id order by id', ['id' => 3]));
+    }
+
+    public function testJson()
+    {
+        $this->db->setTypeConverter(new MyTypeConverter());
+        $value = ['id' => 3, 'content_json' => ['a' => 1, 'b' => 'c']];
+        $this->assertEquals(1, $this->db->queryAffectedCount("INSERT INTO t_test (id, content_json) VALUES (:id, :content_json)", $value));
+        $j = $this->db->queryValue('select content_json from t_test where id = :id', ['id' => 3]);
+        $this->assertEquals(1, $j['a']);
+        $this->assertEquals('c', $j['b']);
     }
 
     public function testTableNotExists()
@@ -77,6 +87,23 @@ EOS
         $count = count($real);
         for ($i = 0; $i < $count; $i++) {
             $this->checkRow($expected[$i], $real[$i]);
+        }
+    }
+}
+
+class MyTypeConverter extends \Pg\TypeConverter {
+    public function o2r($name, $value)
+    {
+        if (1 === preg_match('/_json$/', $name)) {
+            return $this->o2rJson($value);
+        } else if (is_bool($value)) {
+            return $this->o2rBool($value);
+        } else if ($value instanceof \DateTime) {
+            return $this->o2rTs($value);
+        } else if (is_array($value)) {
+            return $this->o2rAry($value);
+        } else {
+            return $value;
         }
     }
 }

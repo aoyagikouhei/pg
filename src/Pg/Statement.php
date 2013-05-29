@@ -40,13 +40,13 @@ class Statement
     {
         $result = [];
         foreach ($row as $key => $value) {
-            $result[$key] = $this->executeConvertTypeValue($value, $typeMap[$key]);
+            $result[$key] = $this->executeConvertTypeValue($key, $value, $typeMap[$key]);
         }
         return $result;
     }
 
-    private function executeConvertTypeValue($value, $type) {
-        return $this->typeConverter->convert($value, $type);
+    private function executeConvertTypeValue($name, $value, $type) {
+        return $this->typeConverter->r2o($name, $value, $type);
     }
 
     public function getColumnName($index)
@@ -75,7 +75,7 @@ class Statement
             return null;
         }
         $value = pg_fetch_result($this->result, 0, 0);
-        return $this->executeConvertTypeValue($value, $this->getType(0));
+        return $this->executeConvertTypeValue($this->getColumnName(0), $value, $this->getType(0));
     }
 
     public function one()
